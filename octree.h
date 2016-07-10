@@ -68,6 +68,8 @@ class NodeOctree {
   	vector<GeomObject>::iterator getObjects();
   	void remove(GeomObject* obj);
 
+  	Point_3 getCenter() { return center; }
+  	double getHalfwidth() { return halfwidth; }
   private:
   	NodeOctree* child[8];
   	NodeOctree* parent;
@@ -78,17 +80,10 @@ class NodeOctree {
 
 void NodeOctree::insert(GeomObject* obj) {
 	int octant = 0;
-	bool straddleNode = false;
 	bool straddleChild = false;
 
 	for(int i = 0; i<3; i++) {
 		float delta = obj->center.cartesian(i) - center.cartesian(i) ; //Distancia do centro do objeto ao centro do nodo
-
-		//Verifica se extensão do objeto e menor que o do nodo e se delta
-		if(halfwidth < obj->half_edges[i] || abs(delta) > halfwidth - obj->half_edges[i]) {
-			straddleNode = true;
-			break;
-		}
 		
 		if(abs(delta) < obj->half_edges[i]) {
 			straddleChild = true;
@@ -97,20 +92,12 @@ void NodeOctree::insert(GeomObject* obj) {
 
 		if(delta > 0)
 			octant |= (1 << i);
-
 	}
 
-	//TODO: alterar a ordem das condições
 	if(!straddleChild)
 		child[octant]->insert(obj);
-	else if(!straddleNode)
+	else
 		objects.push_back(obj);
-	else {
-		int octant = 0;
-		for(int i = 0; i<3; i++) {
-			if(true);
-		}
-	}
 }
 
 class Octree {
@@ -125,16 +112,27 @@ class Octree {
 void Octree::insert(GeomObject *obj) {
 	int octant = 0;
 	bool straddle = false;
+	float newCenter[3];
+
+	Point_3 center = root->getCenter();
+	double halfwidth = root->getHalfwidth();
 
 	for(int i = 0; i<3; i++) {
-		float delta = obj->center.cartesian(i) - center.cartesian(i) ; //Distancia do centro do objeto ao centro do nodo
-
-		//Verifica se extensão do objeto e menor que o do nodo e se delta
-		if(halfwidth < obj->half_edges[i] || abs(delta) > halfwidth - obj->half_edges[i]) {
+		if(obj->center.cartesian(i)-obj->half_edges[i] < center[i]-halfwidth) {
 			straddle = true;
-			break;
+			octant |= (1 << i);
+			newCenter[i] = center[i] + halfwidth;
+		} else if(obj->center.cartesian(i)+obj->half_edges[i] > center[i]+halfwidth) {
+			straddle = true;
+			newCenter[i] = center[i] - halfwidth;
 		}
 	}
+
+	if(straddle) {
+		NodeOctree* temp = new NodeOctree(Point_3(newCenter[0],newCenter[1],newCenter[2]),halfwidth*2,NULL);
+	} else {
+		root->insert(obj);
+	}	
 
 	/*
 	for(int i = 0; i<3; i++) {
