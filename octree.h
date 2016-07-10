@@ -58,10 +58,16 @@ class GeomObject {
 	*/
 };
 
+#define MAX_CHILD 8
+
 class NodeOctree {
+	friend class Octree;
   public:
   	NodeOctree(){};
   	NodeOctree(Point_3 center, double halfwidth, NodeOctree* parent): center(center),halfwidth(halfwidth), parent(parent) {
+  		for(int i = 0; i<MAX_CHILD;i++){
+  			child[i] = NULL;
+  		}
   	};
 
   	void insert(GeomObject* obj);
@@ -71,7 +77,7 @@ class NodeOctree {
   	Point_3 getCenter() { return center; }
   	double getHalfwidth() { return halfwidth; }
   private:
-  	NodeOctree* child[8];
+  	NodeOctree* child[MAX_CHILD];
   	NodeOctree* parent;
   	Point_3 center;
   	double halfwidth;
@@ -110,29 +116,48 @@ class Octree {
 };
 
 void Octree::insert(GeomObject *obj) {
-	int octant = 0;
-	bool straddle = false;
+	int octant;
+	bool straddle;
+	bool expand_root = false;
 	float newCenter[3];
 
 	Point_3 center = root->getCenter();
 	double halfwidth = root->getHalfwidth();
 
-	for(int i = 0; i<3; i++) {
-		if(obj->center.cartesian(i)-obj->half_edges[i] < center[i]-halfwidth) {
-			straddle = true;
-			octant |= (1 << i);
-			newCenter[i] = center[i] + halfwidth;
-		} else if(obj->center.cartesian(i)+obj->half_edges[i] > center[i]+halfwidth) {
-			straddle = true;
-			newCenter[i] = center[i] - halfwidth;
-		}
-	}
+	while(true){
 
-	if(straddle) {
-		NodeOctree* temp = new NodeOctree(Point_3(newCenter[0],newCenter[1],newCenter[2]),halfwidth*2,NULL);
-	} else {
+		octant = 0;
+		straddle = false;
+
+		for(int i = 0; i<3; i++) {
+			if(obj->center.cartesian(i)-obj->half_edges[i] < center[i]-halfwidth) {
+				straddle = true;
+				octant |= (1 << i);
+				newCenter[i] = center[i] + halfwidth;
+			} else if(obj->center.cartesian(i)+obj->half_edges[i] > center[i]+halfwidth) {
+				straddle = true;
+				newCenter[i] = center[i] - halfwidth;
+			}
+		}
+
+		if(!straddle)
+			break;
+		else
+			expand_root = true;
+
+		halfwidth*=2;
+		center = Point_3(newCenter[0],newCenter[1],newCenter[2]);
+
+		NodeOctree* temp = new NodeOctree(center,halfwidth,NULL);
+		temp->child[octant] = root;
+		root = temp;
+		root->parent = root;
+	};
+
+	if(expand_root)
 		root->insert(obj);
-	}	
+	else
+		root->objects.push_back(obj);
 
 	/*
 	for(int i = 0; i<3; i++) {
